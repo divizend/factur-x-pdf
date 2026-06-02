@@ -1,6 +1,7 @@
-export { generateXRechnungPdf } from './generate.js';
+export { generateXRechnungPdf, generateXRechnungPdfFromInvoice } from './generate.js';
 export type {
   GenerateXRechnungPdfOptions,
+  Invoice,
   InvoiceBankDetails,
   InvoiceInput,
   InvoiceLine,

@@ -6,41 +6,7 @@ import {
   type PDFFont,
   type PDFPage,
 } from 'pdf-lib';
-import {
-  getBankBic,
-  getBankIbanDisplay,
-  getBankName,
-  getBuyerCity,
-  getBuyerContact,
-  getBuyerCountry,
-  getBuyerName,
-  getBuyerPostcode,
-  getBuyerReference,
-  getBuyerStreet,
-  getBuyerVatId,
-  getContractReference,
-  getInvoiceId,
-  getIssueDate,
-  getLineId,
-  getLineName,
-  getLineNet,
-  getPaymentTermsNote,
-  getSellerCity,
-  getSellerDirector,
-  getSellerEmail,
-  getSellerName,
-  getSellerPhone,
-  getSellerPostcode,
-  getSellerRegistration,
-  getSellerStreet,
-  getSellerCountry,
-  getSellerVatId,
-  getSubtotal,
-  getTotal,
-  getVat,
-  getVatNote,
-} from './invoice-accessors.js';
-import type { GenerateXRechnungPdfOptions, Invoice } from './types.js';
+import type { GenerateXRechnungPdfOptions, InvoiceInput } from './types.js';
 
 function formatIssueDate(iso: string): string {
   const [year, month, day] = iso.split('-');
@@ -110,19 +76,15 @@ function drawWrapped(
   return currentY;
 }
 
-/** Render a one-page human-readable invoice PDF. */
-export async function renderInvoicePdf(
-  invoice: Invoice,
+/** Render a one-page human-readable invoice PDF from simplified input. */
+export async function renderInvoicePdfFromInput(
+  invoice: InvoiceInput,
   options: Pick<GenerateXRechnungPdfOptions, 'signatureImage'> = {},
 ): Promise<Buffer> {
-  const invoiceNumber = getInvoiceId(invoice);
-  const sellerName = getSellerName(invoice);
-  const buyerName = getBuyerName(invoice);
-
   const doc = await PDFDocument.create();
-  doc.setTitle(`Invoice ${invoiceNumber}`);
-  doc.setAuthor(sellerName);
-  doc.setSubject(`Invoice ${invoiceNumber} for ${buyerName}`);
+  doc.setTitle(`Invoice ${invoice.number}`);
+  doc.setAuthor(invoice.seller.name);
+  doc.setSubject(`Invoice ${invoice.number} for ${invoice.buyer.name}`);
   doc.setCreator('factur-x-pdf');
   doc.setProducer('pdf-lib');
 
@@ -145,7 +107,7 @@ export async function renderInvoicePdf(
   const blue = rgb(0.13, 0.28, 0.75);
   let y = height - 96;
 
-  const headerTitle = sellerName.toUpperCase();
+  const headerTitle = invoice.seller.name.toUpperCase();
   page.drawText(headerTitle, {
     x: width / 2 - bold.widthOfTextAtSize(headerTitle, 24) / 2,
     y,
@@ -153,14 +115,17 @@ export async function renderInvoicePdf(
     font: bold,
     color: turquoise,
   });
+  if (invoice.seller.website) {
+    page.drawText(invoice.seller.website, {
+      x: width / 2 - regular.widthOfTextAtSize(invoice.seller.website, 8) / 2,
+      y: y - 12,
+      size: 8,
+      font: regular,
+    });
+  }
 
   y -= 46;
-  const sellerStreet = getSellerStreet(invoice);
-  const sellerPostcode = getSellerPostcode(invoice);
-  const sellerCity = getSellerCity(invoice);
-  const senderLine = [sellerName, sellerStreet, `${sellerPostcode ?? ''} ${sellerCity ?? ''}`.trim()]
-    .filter(Boolean)
-    .join(' - ');
+  const senderLine = `${invoice.seller.name} - ${invoice.seller.street} - ${invoice.seller.postcode} ${invoice.seller.city}`;
   const senderLineSize = 8;
   page.drawText(senderLine, { x: left, y, size: senderLineSize, font: regular });
   const senderLineWidth = regular.widthOfTextAtSize(senderLine, senderLineSize);
@@ -171,54 +136,37 @@ export async function renderInvoicePdf(
   });
 
   y -= 22;
-  page.drawText(buyerName, { x: left, y, size: 13, font: bold });
+  page.drawText(invoice.buyer.name, { x: left, y, size: 13, font: bold });
   y -= 18;
-  const buyerStreet = getBuyerStreet(invoice);
-  if (buyerStreet) {
-    page.drawText(buyerStreet, { x: left, y, size: 11, font: regular });
-    y -= 13;
-  }
-  const buyerPostcode = getBuyerPostcode(invoice);
-  const buyerCity = getBuyerCity(invoice);
-  if (buyerPostcode || buyerCity) {
-    page.drawText(`${buyerPostcode ?? ''} ${buyerCity ?? ''}`.trim(), {
-      x: left,
-      y,
-      size: 11,
-      font: regular,
-    });
-    y -= 13;
-  }
-  const buyerCountry = getBuyerCountry(invoice);
-  if (buyerCountry) {
-    page.drawText(buyerCountry, { x: left, y, size: 11, font: regular });
-    y -= 13;
-  }
-  const buyerVatId = getBuyerVatId(invoice);
-  if (buyerVatId) {
-    y -= 12;
-    page.drawText(`VAT ID: ${buyerVatId}`, { x: left, y, size: 11, font: regular });
-  }
+  page.drawText(invoice.buyer.street, { x: left, y, size: 11, font: regular });
+  y -= 13;
+  page.drawText(`${invoice.buyer.postcode} ${invoice.buyer.city}`, {
+    x: left,
+    y,
+    size: 11,
+    font: regular,
+  });
+  y -= 13;
+  page.drawText(invoice.buyer.country, { x: left, y, size: 11, font: regular });
+  y -= 25;
+  page.drawText(`VAT ID: ${invoice.buyer.vatId}`, { x: left, y, size: 11, font: regular });
 
   const metaX = 372;
-  const issueDateDisplay = formatIssueDate(getIssueDate(invoice));
+  const issueDateDisplay = formatIssueDate(invoice.issueDateIso);
   page.drawText('Invoice date', { x: metaX, y: height - 155, size: 12, font: bold });
   page.drawText(issueDateDisplay, { x: metaX, y: height - 169, size: 11, font: regular });
   page.drawText('Invoice number', { x: metaX, y: height - 206, size: 12, font: bold });
-  page.drawText(invoiceNumber, { x: metaX, y: height - 220, size: 11, font: regular });
+  page.drawText(invoice.number, { x: metaX, y: height - 220, size: 11, font: regular });
 
   y -= 38;
-  const buyerContact = getBuyerContact(invoice);
-  if (buyerContact) {
-    page.drawText(`Dear ${buyerContact},`, { x: left, y, size: 11, font: regular });
+  if (invoice.buyer.contact) {
+    page.drawText(`Dear ${invoice.buyer.contact},`, { x: left, y, size: 11, font: regular });
     y -= 25;
   }
 
-  const contractReference = getContractReference(invoice);
-  const buyerReference = getBuyerReference(invoice);
   y = drawWrapped(
     page,
-    `The following amount will be charged according to the contract "${contractReference ?? ''}" and code ${buyerReference ?? ''}:`,
+    `The following amount will be charged according to the contract "${invoice.contract}" and code ${invoice.buyerReference}:`,
     left,
     y,
     470,
@@ -235,27 +183,27 @@ export async function renderInvoicePdf(
   page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.8 });
 
   y -= tableCellPadding + tableCapHeight;
-  page.drawText(getLineId(invoice), { x: left, y, size: tableFontSize, font: regular });
-  page.drawText(getLineName(invoice), { x: left + 34, y, size: tableFontSize, font: regular });
-  drawRight(page, money(getLineNet(invoice)), right, y, regular, tableFontSize);
+  page.drawText(invoice.line.id, { x: left, y, size: tableFontSize, font: regular });
+  page.drawText(invoice.line.name, { x: left + 34, y, size: tableFontSize, font: regular });
+  drawRight(page, money(invoice.line.net), right, y, regular, tableFontSize);
 
   y -= tableCellPadding + tableDescent;
   page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1.2 });
 
   y -= 16;
   page.drawText('Subtotal', { x: 385, y, size: 10, font: regular });
-  drawRight(page, money(getSubtotal(invoice)), right, y, regular, 10);
+  drawRight(page, money(invoice.subtotal), right, y, regular, 10);
   y -= 16;
   page.drawText('0% VAT', { x: 385, y, size: 10, font: regular });
-  drawRight(page, money(getVat(invoice)), right, y, regular, 10);
+  drawRight(page, money(invoice.vat), right, y, regular, 10);
   y -= 18;
   page.drawText('Total', { x: 385, y, size: 10, font: bold });
-  drawRight(page, money(getTotal(invoice)), right, y, bold, 10);
+  drawRight(page, money(invoice.total), right, y, bold, 10);
 
   y -= 35;
   y = drawWrapped(
     page,
-    getVatNote(invoice) ??
+    invoice.vatNote ??
       'The VAT rate is 0% due to the application of the reverse charge procedure.',
     left,
     y,
@@ -267,7 +215,7 @@ export async function renderInvoicePdf(
   y -= 6;
   y = drawWrapped(
     page,
-    getPaymentTermsNote(invoice) ??
+    invoice.paymentTermsNote ??
       'Please transfer the stated invoice amount within the next 14 days to the bank details listed below. The invoice date equals the service date.',
     left,
     y,
@@ -280,7 +228,7 @@ export async function renderInvoicePdf(
   y -= 18;
   page.drawText('Sincerely,', { x: left, y, size: 11, font: regular });
   y -= 32;
-  const signatory = getSellerDirector(invoice) ?? sellerName;
+  const signatory = invoice.seller.director ?? invoice.seller.name;
 
   if (options.signatureImage) {
     const signature = await doc.embedPng(options.signatureImage);
@@ -300,30 +248,23 @@ export async function renderInvoicePdf(
 
   page.drawText(signatory, { x: left, y, size: 10, font: bold });
   y -= 12;
-  page.drawText(`CEO ${sellerName}`, { x: left, y, size: 8, font: regular });
+  page.drawText(`CEO ${invoice.seller.name}`, { x: left, y, size: 8, font: regular });
 
   const footerY = 82;
-  page.drawText(sellerName, { x: left, y: footerY, size: footerFontSize, font: regular });
-  if (sellerStreet) {
-    page.drawText(sellerStreet, { x: left, y: footerY - footerLineStep, size: footerFontSize, font: regular });
-  }
-  if (sellerPostcode || sellerCity) {
-    page.drawText(`${sellerPostcode ?? ''} ${sellerCity ?? ''}`.trim(), {
-      x: left,
-      y: footerY - footerLineStep * 2,
-      size: footerFontSize,
-      font: regular,
-    });
-  }
-  const sellerCountry = getSellerCountry(invoice);
-  if (sellerCountry) {
-    page.drawText(sellerCountry, {
-      x: left,
-      y: footerY - footerLineStep * 3,
-      size: footerFontSize,
-      font: regular,
-    });
-  }
+  page.drawText(invoice.seller.name, { x: left, y: footerY, size: footerFontSize, font: regular });
+  page.drawText(invoice.seller.street, { x: left, y: footerY - footerLineStep, size: footerFontSize, font: regular });
+  page.drawText(`${invoice.seller.postcode} ${invoice.seller.city}`, {
+    x: left,
+    y: footerY - footerLineStep * 2,
+    size: footerFontSize,
+    font: regular,
+  });
+  page.drawText(invoice.seller.country, {
+    x: left,
+    y: footerY - footerLineStep * 3,
+    size: footerFontSize,
+    font: regular,
+  });
 
   let footerMiddleY = footerY;
   const drawFooterMiddleLine = (text: string): void => {
@@ -331,11 +272,10 @@ export async function renderInvoicePdf(
     footerMiddleY -= footerLineStep;
   };
 
-  const sellerPhone = getSellerPhone(invoice);
-  const sellerEmail = getSellerEmail(invoice);
   const contactLines = [
-    sellerPhone ? `Phone: ${sellerPhone}` : null,
-    sellerEmail ? `Email: ${sellerEmail}` : null,
+    invoice.seller.phone ? `Phone: ${invoice.seller.phone}` : null,
+    invoice.seller.email ? `Email: ${invoice.seller.email}` : null,
+    invoice.seller.website ? `Internet: ${invoice.seller.website}` : null,
   ].filter((line): line is string => line !== null);
 
   for (const line of contactLines) {
@@ -344,43 +284,28 @@ export async function renderInvoicePdf(
   if (contactLines.length > 0) {
     footerMiddleY -= footerLineStep;
   }
-  if (sellerCity) {
-    drawFooterMiddleLine(`Company headquarters: ${sellerCity}`);
+  drawFooterMiddleLine(`Company headquarters: ${invoice.seller.city}`);
+  if (invoice.seller.registration) {
+    drawFooterMiddleLine(`Commercial register: ${invoice.seller.registration}`);
   }
-  const sellerRegistration = getSellerRegistration(invoice);
-  if (sellerRegistration) {
-    drawFooterMiddleLine(`Commercial register: ${sellerRegistration}`);
+  if (invoice.seller.director) {
+    drawFooterMiddleLine(`Director: ${invoice.seller.director}`);
   }
-  if (signatory) {
-    drawFooterMiddleLine(`Director: ${signatory}`);
-  }
-  const sellerVatId = getSellerVatId(invoice);
-  if (sellerVatId) {
-    drawFooterMiddleLine(`VAT ID: ${sellerVatId}`);
-  }
+  drawFooterMiddleLine(`VAT ID: ${invoice.seller.vatId}`);
 
-  const bankName = getBankName(invoice);
-  if (bankName) {
-    page.drawText(bankName, { x: 385, y: footerY, size: footerFontSize, font: regular });
-  }
-  const bankIbanDisplay = getBankIbanDisplay(invoice);
-  if (bankIbanDisplay) {
-    page.drawText(`IBAN: ${bankIbanDisplay}`, {
-      x: 385,
-      y: footerY - footerLineStep,
-      size: footerFontSize,
-      font: regular,
-    });
-  }
-  const bankBic = getBankBic(invoice);
-  if (bankBic) {
-    page.drawText(`BIC: ${bankBic}`, {
-      x: 385,
-      y: footerY - footerLineStep * 2,
-      size: footerFontSize,
-      font: regular,
-    });
-  }
+  page.drawText(invoice.bank.name, { x: 385, y: footerY, size: footerFontSize, font: regular });
+  page.drawText(`IBAN: ${invoice.bank.ibanDisplay ?? invoice.bank.iban}`, {
+    x: 385,
+    y: footerY - footerLineStep,
+    size: footerFontSize,
+    font: regular,
+  });
+  page.drawText(`BIC: ${invoice.bank.bic}`, {
+    x: 385,
+    y: footerY - footerLineStep * 2,
+    size: footerFontSize,
+    font: regular,
+  });
 
   return Buffer.from(await doc.save());
 }

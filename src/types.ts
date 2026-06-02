@@ -1,3 +1,5 @@
+export type { Invoice } from '@e-invoice-eu/core';
+
 export interface InvoiceParty {
   name: string;
   street: string;
@@ -32,7 +34,7 @@ export interface InvoiceLine {
   net: string;
 }
 
-/** Input accepted by {@link generateXRechnungPdf}. */
+/** Simplified input for {@link generateXRechnungPdf}. */
 export interface InvoiceInput {
   number: string;
   issueDateIso: string;
