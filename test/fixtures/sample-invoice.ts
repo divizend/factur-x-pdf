@@ -1,0 +1,58 @@
+import type { InvoiceInput } from '../../src/types.js';
+
+/** Sample reverse-charge maintenance invoice for tests and documentation. */
+export const sampleInvoice: InvoiceInput = {
+  number: 'INV-2026-001',
+  issueDateIso: '2026-05-29',
+  dueDateIso: '2026-06-12',
+  serviceStartIso: '2026-05-01',
+  serviceEndIso: '2026-05-31',
+  serviceDateIso: '2026-05-29',
+  buyerReference: 'PO-12345',
+  contract: 'SERVICE-2024-001',
+  seller: {
+    name: 'Acme Software GmbH',
+    street: 'Musterstraße 1',
+    postcode: '10115',
+    city: 'Berlin',
+    countryCode: 'DE',
+    country: 'Germany',
+    vatId: 'DE123456789',
+    endpointSchemeId: '9930',
+    phone: '+49 30 12345678',
+    email: 'billing@example.com',
+    website: 'example.com',
+    registration: 'Berlin HRB 123456',
+    director: 'Jane Doe',
+  },
+  buyer: {
+    name: 'Example Customer S.A.',
+    contact: 'John Smith',
+    street: '1 Rue Exemple',
+    postcode: '1234',
+    city: 'Sample City',
+    countryCode: 'LU',
+    country: 'Luxembourg',
+    vatId: 'LU99999999999',
+    endpointSchemeId: '9938',
+  },
+  bank: {
+    name: 'Example Bank',
+    iban: 'DE89370400440532013000',
+    ibanDisplay: 'DE89 3704 0044 0532 0130 00',
+    bic: 'COBADEFFXXX',
+  },
+  line: {
+    id: '1',
+    name: 'Maintenance May 2026',
+    description:
+      'Maintenance May 2026 under contract SERVICE-2024-001; buyer reference PO-12345.',
+    quantity: '1',
+    unitCode: 'C62',
+    price: '1250.00',
+    net: '1250.00',
+  },
+  subtotal: '1250.00',
+  vat: '0.00',
+  total: '1250.00',
+};
