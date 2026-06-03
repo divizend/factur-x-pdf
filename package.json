@@ -34,6 +34,10 @@
     "en16931"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/divizend/factur-x-pdf.git"
+  },
   "engines": {
     "node": ">=20"
   },
